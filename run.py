@@ -5,14 +5,21 @@ import torch
 import argparse
 import numpy as np
 
-from importlib      import import_module
-from utils          import build_dataset
-from utils          import build_iterator
-from utils          import get_time_dif
-from utils_fasttext import build_dataset_fasttext
-from utils_fasttext import build_iterator_fasttext
-from train_eval     import train
-from train_eval     import init_network
+# from importlib      import import_module
+# from utils          import build_dataset
+# from utils          import build_iterator
+# from utils          import get_time_dif
+# from utils_fasttext import build_dataset_fasttext
+# from utils_fasttext import build_iterator_fasttext
+# from train_eval     import train
+# from train_eval     import init_network
+
+import fasttext
+
+from data  import load_dataset
+from data  import build_dataset
+from data  import build_iterator
+from model import Model
 
 
 
@@ -55,11 +62,7 @@ def random_seed(seed=1):
 
 
 
-def load_dataset(args):
-
-    if 'FastText' == args.model:
-        build_dataset = build_dataset_fasttext
-        build_iterator = build_iterator_fasttext
+def load_dataset(args, config):
 
     vocab, train_data, dev_data, test_data = build_dataset(config, args.word)
     train_iter = build_iterator(train_data, config)
@@ -74,22 +77,29 @@ def fit(args):
 
     """ Model
     """
-    module    = parse_module(args)
+    # module    = parse_module(args)
+    module    = fasttext
     embedding = parse_embedding(args)
     config    = init_config(module, args.dataset, embedding)
 
     random_seed()
 
-    vocab, train_iter, dev_iter, test_iter = load_dataset(args)
+    vocab, train_iter, dev_iter, test_iter = load_dataset(args, config)
 
     config.vocab_num = len(vocab)
-    model = module.Model(config).to(config.device)
+    # model = module.Model(config).to(config.device)
+    ft  = module.FastText(config).to(config.device)
+    mdl = Model()
 
     if 'Transformer' != args.model:
-        init_network(model)
+        # init_network(model)
+        mdl.init_network(ft)
 
-    print(model.parameters)
-    train(config, model, train_iter, dev_iter, test_iter)
+    # print(model.parameters)
+    # train(config, model, train_iter, dev_iter, test_iter)
+
+    print(ft.parameters)
+    mdl.fit_predict(config, ft, train_iter, dev_iter, test_iter)
 
 
 

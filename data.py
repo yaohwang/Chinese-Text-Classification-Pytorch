@@ -18,27 +18,27 @@ PAD            = '<PAD>'
 
 def tokenizer(towords):
 
-    if towords
+    if towords:
         return lambda sentence: sentence.split(' ')
     else:
         return lambda sentence: list(sentence)
 
 
 
-def split(line, tokenizer):
+def split(line, token):
     l = line.strip()
     if not l:
         return
     
     text, label = l.split('\t')
     label = int(label)
-    words = tokenizer(text)
+    words = token(text)
 
     return words, label
 
 
 
-def build_vocab(file_path, tokenizer, max_size=MAX_VOCAB_SIZE, min_freq=1):
+def build_vocab(file_path, token, max_size=MAX_VOCAB_SIZE, min_freq=1):
     """ Create Vocabulary
 
     {word:index}, with unknown and pad
@@ -64,7 +64,7 @@ def build_vocab(file_path, tokenizer, max_size=MAX_VOCAB_SIZE, min_freq=1):
 
             # TODO:
             # change into collections.Counter
-            for word in tokenizer(content):
+            for word in token(content):
                 vocab[word] = vocab.get(word, 0) + 1
 
         vocab = filter(lambda wc: wc[1]>=min_freq, vocab.items()) # filter out < min frequency
@@ -77,16 +77,16 @@ def build_vocab(file_path, tokenizer, max_size=MAX_VOCAB_SIZE, min_freq=1):
 
 
 
-def bog_vocab(config, tokenizer, max_size=MAX_VOCAB_SIZE, min_freq=1):
+def bog_vocab(config, token, max_size=MAX_VOCAB_SIZE, min_freq=1):
 
     if os.path.exists(config.path_vocab):
         vocab = pkl.load(open(config.path_vocab, 'rb'))
     else:
-        vocab = build_vocab(config.path_train, tokenizer, max_size, min_freq)
+        vocab = build_vocab(config.path_train, token, max_size, min_freq)
         pkl.dump(vocab, open(config.path_vocab, 'wb'))
 
     print(f"vocab size: {len(vocab)}")
-
+    return vocab
 
 
 def hash2(words_idx, i, num_vocab_ngram):
@@ -132,13 +132,20 @@ def words_to_index(words, vocab):
 
 
 
-def load_dataset(path, vocab, pad_size=32):
+def load_dataset(config, path, vocab, token, pad_size=32):
+    """ load X, y
+    
+    each line (content) --> list words, index, pad_size (padding or cutoff)
+                        --> bi-gram   , index, pad_size
+                        --> tri-gram  , index, pad_size
+    """
+
     dataset = []
 
     with open(path, 'r', encoding='UTF-8') as f:
 
         for line in tqdm(f):
-            words, label = split(line, tokenizer)                              # words
+            words, label = split(line, token)                                  # words
             words, num_valid_words = padding(words, pad_size)                  # padding
             words_idx = words_to_index(words, vocab)                           # words to index
             bigram  = hash_bigram(words_idx , pad_size, config.vocab_gram_num) # bi-gram
@@ -150,16 +157,16 @@ def load_dataset(path, vocab, pad_size=32):
 
 
 
-def build_dataset_fasttext(config, towords):
+def build_dataset(config, towords):
     """ Build Dataset
     """
 
-    tokenizer = tokenizer(towords)
-    vocab     = bog_vocab(config, tokenizer)
+    token = tokenizer(towords)
+    vocab = bog_vocab(config, token)
 
-    train = load_dataset(config.path_train, vocab, config.pad_size)
-    valid = load_dataset(config.path_valid  , vocab, config.pad_size)
-    test  = load_dataset(config.path_test , vocab, config.pad_size)
+    train = load_dataset(config, config.path_train, vocab, token, config.pad_size)
+    valid = load_dataset(config, config.path_valid, vocab, token, config.pad_size)
+    test  = load_dataset(config, config.path_test , vocab, token, config.pad_size)
 
     return vocab, train, valid, test
 
@@ -218,7 +225,7 @@ class DatasetIterater(object):
 
 
 
-def build_iterator_fasttext(dataset, config):
+def build_iterator(dataset, config):
     return DatasetIterater(dataset, config.batch_size, config.device)
 
 
