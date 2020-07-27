@@ -1,5 +1,6 @@
 # encoding: utf-8
 
+import os
 import torch
 import torch.nn            as nn
 import torch.nn.functional as F
@@ -13,21 +14,42 @@ class Config(object):
 
         """ path
         """
-        self.path_train  = path_dataset + '/data/train.txt'
-        self.path_valid  = path_dataset + '/data/dev.txt'
-        self.path_test   = path_dataset + '/data/test.txt'
-        self.path_labels = path_dataset + '/data/class.txt'
-        self.path_vocab  = path_dataset + '/data/vocab.pkl'
+        # self.path_train  = path_dataset + '/data/train.txt'
+        # self.path_valid  = path_dataset + '/data/dev.txt'
+        # self.path_test   = [path_dataset + '/data/test.txt']
+        # self.path_labels = path_dataset + '/data/class.txt'
+        # self.path_vocab  = path_dataset + '/data/vocab.pkl'
 
-        self.path_pretrained_embedding = path_dataset + '/data/'       + embedding
-        self.path_model                = path_dataset + '/saved_dict/' + self.name + '.ckpt'
-        self.path_log                  = path_dataset + '/log/'        + self.name
+        self.path_train  = os.path.join(path_dataset, 'train-9.txt')
+        self.path_valid  = [os.path.join(path_dataset, 'test-1.1-jieba.csv'),
+                            os.path.join(path_dataset, 'test-2.1-jieba.csv'),
+                            os.path.join(path_dataset, 'test-3.1-jieba.csv'),
+                            os.path.join(path_dataset, 'test-4.1-testteam-jieba.csv'),
+                            os.path.join(path_dataset, 'test-5.1-testteam-jieba.csv'),
+                            os.path.join(path_dataset, 'test-6.1-testteam-jieba.csv'),
+                            os.path.join(path_dataset, 'test-7.1-smyq-jieba.csv'),
+                            os.path.join(path_dataset, 'test-8.1-smyq-jieba.csv'),
+                            os.path.join(path_dataset, 'test-9.1-smyq-jieba.csv')]
+        self.path_test   = self.path_valid
+
+        self.path_labels = os.path.join(path_dataset, 'class.txt')
+        self.path_vocab  = os.path.join(path_dataset, 'vocab.pkl')
+
+        # self.path_pretrained_embedding = path_dataset + '/data/'       + embedding
+        # self.path_model                = path_dataset + '/saved_dict/' + self.name + '.ckpt'
+        # self.path_log                  = path_dataset + '/log/'        + self.name
+
+        self.path_pretrained_embedding = os.path.join(os.path.join(path_dataset, 'embedding'), embedding)
+        self.path_model                = os.path.join(os.path.join(path_dataset, 'model')    , self.name+'.ckpt')
+        self.path_log                  = os.path.join(os.path.join(path_dataset, 'log')      , self.name)
 
         """ basic info
         """
-
         self.labels = self.load_labels()
         self.pretrained_embedding = self.load_pretrained_embedding() if embedding != 'random' else None
+
+        """ device
+        """
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
         """ parameters
@@ -37,9 +59,16 @@ class Config(object):
         self.vocab_gram_num = 250499
         self.pretrained_embedding_dim = self.pretrained_embedding.size(1) if self.pretrained_embedding is not None else 300
 
+        # self.epoches_num   = 20
+        # self.pad_size      = 32
+        # self.batch_size    = 128
+        # self.hidden_size   = 256
+        # self.dropout       = 0.5
+        # self.learning_rate = 1e-3
+
         self.epoches_num   = 20
-        self.pad_size      = 32
-        self.batch_size    = 128
+        self.pad_size      = 128
+        self.batch_size    = 32
         self.hidden_size   = 256
         self.dropout       = 0.5
         self.learning_rate = 1e-3

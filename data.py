@@ -3,42 +3,105 @@
 import os
 import time
 import torch
+import collections
 import numpy  as np
+import pandas as pd
 import pickle as pkl
 
 from tqdm     import tqdm
 from datetime import timedelta
 
 
-MAX_VOCAB_SIZE = 10000
+# MAX_VOCAB_SIZE = 10000
+MAX_VOCAB_SIZE = 300000
 UNK            = '<UNK>'
 PAD            = '<PAD>'
 
 
+mapping_label = {
+                    -1:0,
+                     0:1,
+                     1:2
+                }
 
-def tokenizer(towords):
 
-    if towords:
-        return lambda sentence: sentence.split(' ')
+
+def read_txt(fn):
+
+    with open(fn, 'r', encoding='UTF-8') as f:
+        for line in tqdm(f):
+            try:
+                l = line.strip()
+                if not l:
+                    continue
+
+                l = l.split('__label__')
+
+                text = l[0].strip().split(' ')
+                text = [t.strip() for t in text if '' != t.strip()]
+                if 0 == len(text):
+                    continue
+                # text = ''.join(text).split()
+
+                label = mapping_label[int(l[1].strip())]
+                yield text, label
+            except:
+                continue
+
+
+
+def read_csv(fn):
+
+    df = pd.read_csv(fn, encoding='utf-8')
+
+    for i in df[['x', 'label']].iterrows(): 
+        try:
+            text = i[1].x.strip().split(' ')
+            text = [t.strip() for t in text if '' != t.strip()]
+            if 0 == len(text):
+                continue
+            # text = ''.join(text).split()
+            
+            label = mapping_label[int(i[1].label)]
+            yield text, label
+        except:
+            continue
+
+
+
+def read(fn):
+
+    if fn.endswith('txt'):
+        return read_txt(fn)
     else:
-        return lambda sentence: list(sentence)
+        return read_csv(fn)
 
 
 
-def split(line, token):
-    l = line.strip()
-    if not l:
-        return
-    
-    text, label = l.split('\t')
-    label = int(label)
-    words = token(text)
-
-    return words, label
+# def tokenizer(towords):
+# 
+#     if towords:
+#         return lambda sentence: sentence.split(' ')
+#     else:
+#         return lambda sentence: list(sentence)
 
 
 
-def build_vocab(file_path, token, max_size=MAX_VOCAB_SIZE, min_freq=1):
+# def split(line, token):
+#     l = line.strip()
+#     if not l:
+#         return
+#     
+#     text, label = l.split('\t')
+#     label = int(label)
+#     words = token(text)
+# 
+#     return words, label
+
+
+
+# def build_vocab(file_path, token, max_size=MAX_VOCAB_SIZE, min_freq=1):
+def build_vocab(file_path, max_size=MAX_VOCAB_SIZE, min_freq=1):
     """ Create Vocabulary
 
     {word:index}, with unknown and pad
@@ -51,39 +114,52 @@ def build_vocab(file_path, token, max_size=MAX_VOCAB_SIZE, min_freq=1):
 
     vocab = {}
 
-    with open(file_path, 'r', encoding='UTF-8') as f:
+    # with open(file_path, 'r', encoding='UTF-8') as f:
 
-        # count
-        for line in tqdm(f):
-            l = line.strip()
-            if not l:
-                continue
+    #     # count
+    #     for line in tqdm(f):
+    #         l = line.strip()
+    #         if not l:
+    #             continue
 
-            # content \t label
-            content = l.split('\t')[0]
+    #         # content \t label
+    #         content = l.split('\t')[0]
+    #  
+    #         # TODO:
+    #         # change into collections.Counter
+    #         for word in token(content):
+    #             vocab[word] = vocab.get(word, 0) + 1
 
-            # TODO:
-            # change into collections.Counter
-            for word in token(content):
-                vocab[word] = vocab.get(word, 0) + 1
 
-        vocab = filter(lambda wc: wc[1]>=min_freq, vocab.items()) # filter out < min frequency
-        vocab = sorted(vocab, key=lambda wc: wc[1], reverse=True) # sort descending
-        vocab = vocab[:max_size]                                  # cutoff by max size limit
-        vocab = {w:i for i, w, _ in enumerate(vocab)}             # {word:count} --> {word:index}
-        vocab.update({UNK:len(vocab), PAD:len(vocab)+1})          # add unknown and pad to vocab
+    for content, _ in read(file_path):
+        for word in content:
+            vocab[word] = vocab.get(word, 0) + 1
+
+    vocab = filter(lambda wc: wc[1]>=min_freq, vocab.items()) # filter out < min frequency
+    vocab = sorted(vocab, key=lambda wc: wc[1], reverse=True) # sort descending
+    print(len(vocab))
+    c = collections.Counter([v[1] for v in vocab])
+    print(sorted(c.items(), key=lambda pair: pair[0], reverse=True))
+    # vocab = vocab[:max_size]                                  # cutoff by max size limit
+    vocab = {w:i for i, (w, _) in enumerate(vocab)}           # {word:count} --> {word:index}
+    vocab.update({UNK:len(vocab), PAD:len(vocab)+1})          # add unknown and pad to vocab
 
     return vocab
 
 
 
-def bog_vocab(config, token, max_size=MAX_VOCAB_SIZE, min_freq=1):
+# def bog_vocab(config, token, max_size=MAX_VOCAB_SIZE, min_freq=1):
+def bog_vocab(config, max_size=MAX_VOCAB_SIZE, min_freq=1):
 
-    if os.path.exists(config.path_vocab):
-        vocab = pkl.load(open(config.path_vocab, 'rb'))
-    else:
-        vocab = build_vocab(config.path_train, token, max_size, min_freq)
-        pkl.dump(vocab, open(config.path_vocab, 'wb'))
+    # if os.path.exists(config.path_vocab):
+    #     vocab = pkl.load(open(config.path_vocab, 'rb'))
+    # else:
+    #     # vocab = build_vocab(config.path_train, token, max_size, min_freq)
+    #     vocab = build_vocab(config.path_train, max_size, min_freq)
+    #     pkl.dump(vocab, open(config.path_vocab, 'wb'))
+
+    vocab = build_vocab(config.path_train, max_size, min_freq)
+    pkl.dump(vocab, open(config.path_vocab, 'wb'))
 
     print(f"vocab size: {len(vocab)}")
     return vocab
@@ -132,7 +208,8 @@ def words_to_index(words, vocab):
 
 
 
-def load_dataset(config, path, vocab, token, pad_size=32):
+# def load_dataset(config, path, vocab, token, pad_size=32):
+def load_dataset(config, path, vocab, pad_size=32):
     """ load X, y
     
     each line (content) --> list words, index, pad_size (padding or cutoff)
@@ -142,10 +219,14 @@ def load_dataset(config, path, vocab, token, pad_size=32):
 
     dataset = []
 
-    with open(path, 'r', encoding='UTF-8') as f:
+    # with open(path, 'r', encoding='UTF-8') as f:
 
-        for line in tqdm(f):
-            words, label = split(line, token)                                  # words
+    #     for line in tqdm(f):
+    #         words, label = split(line, token)                                  # words
+    #         # print(words)
+
+    for words, label in read(path):
+
             words, num_valid_words = padding(words, pad_size)                  # padding
             words_idx = words_to_index(words, vocab)                           # words to index
             bigram  = hash_bigram(words_idx , pad_size, config.vocab_gram_num) # bi-gram
@@ -161,25 +242,39 @@ def build_dataset(config, towords):
     """ Build Dataset
     """
 
-    token = tokenizer(towords)
-    vocab = bog_vocab(config, token)
+    # token = tokenizer(towords)
+    # vocab = bog_vocab(config, token)
+    vocab = bog_vocab(config)
 
-    train = load_dataset(config, config.path_train, vocab, token, config.pad_size)
-    valid = load_dataset(config, config.path_valid, vocab, token, config.pad_size)
-    test  = load_dataset(config, config.path_test , vocab, token, config.pad_size)
+    # train = load_dataset(config, config.path_train, vocab, token, config.pad_size)
+    train = load_dataset(config, config.path_train, vocab, config.pad_size)
+    # valid = load_dataset(config, config.path_valid, vocab, token, config.pad_size)
+
+    # test = [load_dataset(config, path_test , vocab, token, config.pad_size)
+    test = [load_dataset(config, path_test , vocab, config.pad_size)
+            for path_test in config.path_test]
+    valid = [load_dataset(config, path_valid , vocab, config.pad_size)
+            for path_valid in config.path_valid]
 
     return vocab, train, valid, test
+    # return vocab, train, test
+    # return vocab, train, valid
 
 
 
-class DatasetIterater(object):
+class DatasetIterator(object):
 
     def __init__(self, dataset, batch_size, device):
-        self.dataset    = dataset
+        self.dataset = dataset
 
-        self.batch_size     = batch_size
-        self.batch_num      = len(dataset) // batch_size
-        self.batch_residual = False if 0 == len(dataset) % self.batch_num else True
+        if len(dataset) < batch_size:
+            self.batch_size     = len(dataset)
+            self.batch_num      = 1
+            self.batch_residual = 0
+        else:
+            self.batch_size     = batch_size
+            self.batch_num      = len(dataset) // batch_size
+            self.batch_residual = False if 0 == len(dataset) % self.batch_num else True
 
         self.device = device
         self.index  = 0
@@ -225,8 +320,11 @@ class DatasetIterater(object):
 
 
 
-def build_iterator(dataset, config):
-    return DatasetIterater(dataset, config.batch_size, config.device)
+def build_iterator(dataset, config, islist=False):
+    if islist:
+        return [DatasetIterator(d, config.batch_size, config.device) 
+                for d in dataset]
+    return DatasetIterator(dataset, config.batch_size, config.device)
 
 
 

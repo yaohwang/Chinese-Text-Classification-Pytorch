@@ -3,7 +3,9 @@
 import time
 import torch
 import argparse
-import numpy as np
+
+import numpy    as np
+import torch.nn as nn
 
 # from importlib      import import_module
 # from utils          import build_dataset
@@ -62,14 +64,22 @@ def random_seed(seed=1):
 
 
 
-def load_dataset(args, config):
+def loading_dataset(args, config):
 
     vocab, train_data, dev_data, test_data = build_dataset(config, args.word)
+    # vocab, train_data, test_data = build_dataset(config, args.word)
+    # vocab, train_data, dev_data = build_dataset(config, args.word)
+    # print(test_data)
+
+
     train_iter = build_iterator(train_data, config)
-    dev_iter   = build_iterator(dev_data, config)
-    test_iter  = build_iterator(test_data, config)
+    # dev_iter   = build_iterator(dev_data  , config)
+    test_iter  = build_iterator(test_data , config, islist=True)
+    dev_iter  = build_iterator(dev_data , config, islist=True)
 
     return vocab, train_iter, dev_iter, test_iter
+    # return vocab, train_iter, test_iter
+    # return vocab, train_iter, dev_iter
 
 
 
@@ -84,22 +94,35 @@ def fit(args):
 
     random_seed()
 
-    vocab, train_iter, dev_iter, test_iter = load_dataset(args, config)
+    vocab, train_iter, dev_iter, test_iter = loading_dataset(args, config)
+    # vocab, train_iter, test_iter = loading_dataset(args, config)
+    # vocab, train_iter, dev_iter = loading_dataset(args, config)
 
     config.vocab_num = len(vocab)
+
     # model = module.Model(config).to(config.device)
     ft  = module.FastText(config).to(config.device)
+
+    # ft = module.FastText(config)
+    # ft = nn.DataParallel(ft)
+    # torch.distributed.init_process_group(backend='nccl', init_method='tcp://localhost:23456', rank=0, world_size=1)
+    # ft = nn.parallel.DistributedDataParallel(ft)
+    # ft.cuda()
+
     mdl = Model()
 
     if 'Transformer' != args.model:
         # init_network(model)
-        mdl.init_network(ft)
+        mdl.init_network(ft, config)
 
     # print(model.parameters)
     # train(config, model, train_iter, dev_iter, test_iter)
 
     print(ft.parameters)
+    # print(test_iter)
     mdl.fit_predict(config, ft, train_iter, dev_iter, test_iter)
+    # mdl.fit_predict(config, ft, train_iter, test_iter)
+    # mdl.fit_predict(config, ft, train_iter, dev_iter)
 
 
 
@@ -109,7 +132,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Chinese Text Classification')
     parser.add_argument('--model'    , type=str , required= True         , help='choose a model: TextCNN, TextRNN, FastText, TextRCNN, TextRNN_Att, DPCNN, Transformer')
     parser.add_argument('--embedding', type=str , default = 'pre_trained', help='random or pre_trained')
-    parser.add_argument('--dataset'  , type=str , default = 'THUCNews')
+    # parser.add_argument('--dataset'  , type=str , default = 'THUCNews')
+    parser.add_argument('--dataset'  , type=str , default = '/home/wangyh/data/sentiment/raw')
     parser.add_argument('--word'     , type=bool, default = False        , help='True for word, False for char')
     args = parser.parse_args()
 
